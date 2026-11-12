@@ -1,0 +1,12 @@
+{
+  "appId": "de.trainingswoche.app",
+  "appName": "Trainingswoche",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_trainingswoche",
+      "iconColor": "#0B63C9"
+    }
+  }
+}
