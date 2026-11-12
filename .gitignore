@@ -1,0 +1,9 @@
+# Android signing keys
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# Signing credentials
+keystore.properties
+key.properties
