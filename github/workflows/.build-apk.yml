@@ -1,0 +1,96 @@
+name: APK bauen
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "icon.png"
+      - "package.json"
+      - "capacitor.config.json"
+      - "prepare-android.py"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prüfen, ob der Signaturschlüssel hinterlegt ist
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Eines der beiden Geheimnisse KEYSTORE_BASE64 oder KEYSTORE_PASSWORD fehlt. Siehe README.md, Schritt 2."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Web-Dateien bereitstellen
+        run: |
+          mkdir -p www
+          cp index.html www/index.html
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: Android-Projekt erzeugen
+        run: npx cap add android
+
+      - name: Android-Projekt anpassen
+        run: |
+          pip install pillow
+          python3 prepare-android.py
+
+      - name: Dateien in das Projekt übernehmen
+        run: npx cap sync android
+
+      - name: APK bauen
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: APK signieren
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -e
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/trainingswoche.p12"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          UNSIGNED=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "Gefunden: $UNSIGNED, Build-Tools: $BT"
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/trainingswoche.p12" --ks-pass env:KEYSTORE_PASSWORD \
+            --ks-key-alias trainingswoche --out "Trainingswoche-${APP_VERSION}.apk" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --verbose "Trainingswoche-${APP_VERSION}.apk" | head -5
+
+      - name: APK als Download bereitstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}-build${{ github.run_number }}
+          name: Trainingswoche ${{ env.APP_VERSION }}
+          body: |
+            Android-App der Trainingswoche, Version ${{ env.APP_VERSION }}.
+            Zum Installieren die Datei Trainingswoche-${{ env.APP_VERSION }}.apk herunterladen und öffnen.
+          files: Trainingswoche-${{ env.APP_VERSION }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Trainingswoche-APK
+          path: Trainingswoche-*.apk
