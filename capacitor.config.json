@@ -1,6 +1,6 @@
 {
   "appId": "de.trainingswoche.app",
-  "appName": "Trainingswoche",
+  "appName": "Training",
   "webDir": "www",
   "backgroundColor": "#000000",
   "plugins": {
