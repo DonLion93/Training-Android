@@ -577,13 +577,19 @@ html.kb-open #view { padding-bottom: 60vh; }
 .ring-tile.fx-full, .ring-tile.fx-over { z-index: 2; }
 
 /* Option: Kacheln oben anheften */
-.meters.stick { position: sticky; top: 0; z-index: 6; background: var(--bg); padding-bottom: 8px; }
-.meters.stick.compact { box-shadow: 0 8px 8px -8px rgba(0, 0, 0, .35); }
-.meters.compact .ring-tile { display: flex; flex-direction: row-reverse; align-items: center; justify-content: center; gap: 10px; padding: 6px 10px; }
-.meters.compact .ring-wrap { width: 44px; flex: none; }
-.meters.compact .m-val { font-size: 13px; }
-.meters.compact .m-val small { display: none; }
-.meters.compact .m-val.rest { font-size: 9px; }
+.ring-row { display: flex; align-items: center; justify-content: center; width: 100%; gap: calc(10px * var(--t, 0)); }
+.ring-row .ring-wrap { flex: none; }
+.m-label2 { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; }
+html.has-stick { overflow-anchor: none; } /* sonst gleicht der Browser das Schrumpfen der Kacheln durch Verschieben der Seite aus */
+.meters.stick { --t: 0; position: sticky; top: 0; z-index: 6; background: var(--bg); padding-bottom: 8px; box-shadow: 0 8px 8px -8px rgba(0, 0, 0, calc(.4 * var(--t))); }
+.meters.stick .ring-tile { display: flex; flex-direction: column; align-items: center; padding: calc(12px - 6px * var(--t)) 10px calc(14px - 8px * var(--t)); gap: calc(6px * (1 - var(--t))); }
+.meters.stick .m-label { line-height: 14px; }
+.meters.stick .m-label:not(.m-label2) { height: calc(14px * (1 - var(--t))); opacity: clamp(0, 1 - var(--t) * 1.8, 1); overflow: hidden; }
+.meters.stick .m-label2 { max-width: calc(90px * clamp(0, (var(--t) - 0.55) / 0.45, 1)); opacity: clamp(0, (var(--t) - 0.6) * 2.5, 1); }
+.meters.stick .ring-wrap { width: calc(min(100%, 150px) * (1 - var(--t)) + 44px * var(--t)); }
+.meters.stick .m-val { font-size: calc(clamp(24px, 8vw, 34px) * (1 - var(--t)) + 13px * var(--t)); }
+.meters.stick .m-val small { font-size: calc(0.5em * (1 - var(--t))); }
+.meters.stick .m-val.rest { font-size: calc(17px * (1 - var(--t)) + 9px * var(--t)); }
 /* Option: erledigte Übungen nach unten */
 .xsep { list-style: none; padding: 10px 0 2px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border: 0; }
 .xrow.settle { animation: x-settle .45s ease-out; }
@@ -614,6 +620,17 @@ html.sw-nav .tabs { touch-action: none; }
 .bd.m-g { --m0: #ffe27a; --m1: #f0b922; --m2: #b98300; --mi: #3d2a00; }
 .bd.m-b .bd-ring, .bd.m-s .bd-ring, .bd.m-g .bd-ring { border-color: color-mix(in srgb, var(--m1) 60%, var(--line)); }
 .bd.got.m-b .bd-ring, .bd.got.m-s .bd-ring, .bd.got.m-g .bd-ring { border: 2px solid var(--m2); background: radial-gradient(circle at 32% 28%, var(--m0), var(--m1) 58%, var(--m2)); color: var(--mi); box-shadow: inset 0 1px 1px rgba(255, 255, 255, .55), 0 1px 3px rgba(0, 0, 0, .3); }
+
+/* Regler (Timer-Signal) */
+.rg-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; min-height: 44px; font-size: 16px; }
+.rg-val { min-width: 48px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rg { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 28px; margin: 0; background: transparent; cursor: pointer; --p: 70%; }
+.rg::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--accent) var(--p), color-mix(in srgb, var(--muted) 45%, var(--surface)) var(--p)); }
+.rg::-moz-range-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 45%, var(--surface)); }
+.rg::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--accent); }
+.rg::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; margin-top: -9px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.rg::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+.rg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 </style>
 </head>
@@ -770,9 +787,20 @@ html.sw-nav .tabs { touch-action: none; }
 (function () {
   "use strict";
 
-  App.version = "1.36.0";
+  App.version = "1.39.0";
 
   App.changelog = [
+    { v: "1.39.0", date: "2026-11-15", items: [
+      "Neu: Unter Einstellungen > Darstellung > Timer-Signal stellst du die Lautstärke des Timer-Tons (0 bis 100 %) und die Vibration (aus, schwach, mittel, stark) ein. Beim Verstellen gibt es eine Probe, dazu einen Knopf „Signal testen“.",
+      "Hinweis: Die Vibration ändert die Länge der Impulse, nicht die Kraft des Motors, denn das lässt Android für Apps nicht zu."
+    ] },
+    { v: "1.38.0", date: "2026-11-15", items: [
+      "Angeheftete Kacheln (Einstellungen > Darstellung): Sie schrumpfen jetzt stufenlos mit dem Scrollen statt auf einmal zu springen. Der schwarze Streifen darunter ist weg. Beim Hochscrollen wachsen sie genauso wieder."
+    ] },
+    { v: "1.37.0", date: "2026-11-13", items: [
+      "Android-App: Die Zurück-Taste schließt erst offene Fenster, geht dann Reiter für Reiter zurück und beendet die App erst vom Startreiter aus.",
+      "Android-App: Neu unter Einstellungen > Backup: „Automatische Sicherung“. Die App legt bei Änderungen (höchstens alle 12 Stunden) eine Backup-Datei im Ordner Dokumente/Trainingswoche an und behält die letzten sieben. „Jetzt sichern“ macht es sofort."
+    ] },
     { v: "1.36.0", date: "2026-11-12", items: [
       "Abzeichen: Die ersten zwei Stufen jeder Reihe sind jetzt Bronze, die mittleren zwei Silber, die letzten zwei Gold.",
       "Einstellungen: Alle Kästchen zum Ein- und Ausschalten sind jetzt Schalter (Persönliche Angaben, Benachrichtigungen, Wiegen-Erinnerung)."
@@ -1200,7 +1228,7 @@ html.sw-nav .tabs { touch-action: none; }
       notes: {},
       reports: [],
       weights: [],
-      settings: { theme: "system", accent: null, profile: { gender: null, height: null, weight: null, target: null, nick: "" }, notify: cleanNotify(null), view: cleanView(null) },
+      settings: { theme: "system", accent: null, profile: { gender: null, height: null, weight: null, target: null, nick: "" }, notify: cleanNotify(null), view: cleanView(null), timer: cleanTimer(null), backup: { auto: true } },
       updatedAt: 0
     };
   }
@@ -1337,7 +1365,9 @@ html.sw-nav .tabs { touch-action: none; }
       accent: typeof s.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(s.accent) ? s.accent.toLowerCase() : null,
       profile: cleanProfile(s.profile),
       notify: cleanNotify(s.notify),
-      view: cleanView(s.view)
+      view: cleanView(s.view),
+      timer: cleanTimer(s.timer),
+      backup: { auto: !(s.backup && s.backup.auto === false) }
     };
   }
 
@@ -1345,6 +1375,13 @@ html.sw-nav .tabs { touch-action: none; }
   function cleanView(raw) {
     raw = raw && typeof raw === "object" ? raw : {};
     return { sticky: raw.sticky === true, hideDone: raw.hideDone === true, swipeNav: raw.swipeNav === true, swipePage: raw.swipePage === true };
+  }
+
+  /* Signal des Übungs-Timers: volume = Lautstärke des Tons 0 bis 100, vibe = Vibration 0 aus, 1 schwach, 2 mittel, 3 stark */
+  function cleanTimer(raw) {
+    raw = raw && typeof raw === "object" ? raw : {};
+    var v = Math.round(Number(raw.volume)), b = Math.round(Number(raw.vibe));
+    return { volume: isFinite(v) && v >= 0 && v <= 100 ? v : 70, vibe: isFinite(b) && b >= 0 && b <= 3 && raw.vibe !== null && raw.vibe !== "" ? b : 2 };
   }
 
   /* Erinnerungen (Benachrichtigungen der Android-App): je Art an/aus, Uhrzeit HH:MM und Text mit dem Platzhalter {name} für den Spitznamen */
@@ -1586,6 +1623,7 @@ html.sw-nav .tabs { touch-action: none; }
     onChange: function (fn) { changeHooks.push(fn); },
     cleanNotify: cleanNotify,
     cleanView: cleanView,
+    cleanTimer: cleanTimer,
     NOTIFY_DEFAULTS: NOTIFY_DEFAULTS
   };
 
@@ -2816,15 +2854,36 @@ html.sw-nav .tabs { touch-action: none; }
   function baseSec() { return (t.done ? t.done() : 0) * per(t.unit); }
   function goalSec() { return t.target * per(t.unit); }
 
+  /* Signal-Einstellungen: Lautstärke 0-100 (70 entspricht dem bisherigen Ton), Vibration aus/schwach/mittel/stark */
+  function cfg() {
+    var c = App.store.state().settings.timer || {};
+    return { volume: typeof c.volume === "number" ? c.volume : 70, vibe: typeof c.vibe === "number" ? c.vibe : 2 };
+  }
+  function gain(base) { var v = cfg().volume / 70; return Math.min(1, base * v * v); }
+  /* Android-WebViews kennen keine Stärke, nur Dauer: die Pulse werden kürzer (schwach) oder länger (stark), die Pausen bleiben */
+  function buzz(pattern) {
+    try {
+      var f = [0, 0.5, 1, 2][cfg().vibe];
+      if (!f || !navigator.vibrate) return;
+      navigator.vibrate(pattern.map(function (ms, i) { return i % 2 ? ms : Math.max(15, Math.round(ms * f)); }));
+    } catch (e) { /* egal */ }
+  }
+  function ensureAudio() {
+    try {
+      if (!audio) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) audio = new AC(); }
+      if (audio && audio.state === "suspended") audio.resume();
+    } catch (e) { audio = null; }
+  }
+
   function beep() {
     try {
-      if (!audio) return;
+      if (!audio || cfg().volume <= 0) return;
       if (audio.state === "suspended") audio.resume();
       for (var i = 0; i < 3; i++) {
         var o = audio.createOscillator(), g = audio.createGain(), at = audio.currentTime + i * 0.3;
         o.frequency.value = 880;
         g.gain.setValueAtTime(0.0001, at);
-        g.gain.exponentialRampToValueAtTime(0.25, at + 0.02);
+        g.gain.exponentialRampToValueAtTime(gain(0.25), at + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, at + 0.2);
         o.connect(g); g.connect(audio.destination);
         o.start(at); o.stop(at + 0.22);
@@ -2835,13 +2894,13 @@ html.sw-nav .tabs { touch-action: none; }
   /* Kurzer Ton, wenn die Vorbereitung vorbei ist und die Zeit beginnt */
   function beepGo() {
     try {
-      if (navigator.vibrate) navigator.vibrate(80);
-      if (!audio) return;
+      buzz([80]);
+      if (!audio || cfg().volume <= 0) return;
       if (audio.state === "suspended") audio.resume();
       var o = audio.createOscillator(), g = audio.createGain(), at = audio.currentTime;
       o.frequency.value = 660;
       g.gain.setValueAtTime(0.0001, at);
-      g.gain.exponentialRampToValueAtTime(0.2, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(gain(0.2), at + 0.02);
       g.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
       o.connect(g); g.connect(audio.destination);
       o.start(at); o.stop(at + 0.2);
@@ -2850,7 +2909,7 @@ html.sw-nav .tabs { touch-action: none; }
 
   function alertGoal() {
     t.fired = true;
-    try { if (navigator.vibrate) navigator.vibrate([250, 120, 250]); } catch (e) { /* egal */ }
+    buzz([250, 120, 250]);
     beep();
     if (ui) ui.ann.textContent = "Ziel erreicht";
   }
@@ -2908,10 +2967,7 @@ html.sw-nav .tabs { touch-action: none; }
 
   function start() {
     if (!t || t.since) return;
-    try {
-      if (!audio) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) audio = new AC(); }
-      if (audio && audio.state === "suspended") audio.resume();
-    } catch (e) { audio = null; }
+    ensureAudio();
     t.since = Date.now();
     if (rawMs() < LEAD_MS && ui) ui.ann.textContent = "Gleich geht es los";
     if (baseSec() >= goalSec() && t.acc === 0) t.fired = true; /* Ziel schon vor dem Start erreicht: kein Signal */
@@ -2991,6 +3047,8 @@ html.sw-nav .tabs { touch-action: none; }
     },
     closeIdle: function () { if (t && !active()) discard(); },
     discard: discard,
+    /* Probe für die Einstellungen: Ziel-Signal mit den aktuellen Werten */
+    test: function () { ensureAudio(); buzz([250, 120, 250]); beep(); },
     panel: panel
   };
 })();
@@ -4649,6 +4707,171 @@ html.sw-nav .tabs { touch-action: none; }
 
 </script>
 <script>
+/* Funktionen, die es nur in der Android-App gibt (Capacitor). Im Browser und in der Web-App passiert hier nichts.
+   1. Zurück-Taste: erst offene Fenster schließen, dann die zuletzt besuchten Reiter rückwärts, erst vom Startreiter aus die App beenden.
+   2. Automatische Sicherung: schreibt das Backup als Datei in Dokumente/Trainingswoche, das übersteht auch ein Deinstallieren. */
+(function () {
+  "use strict";
+  var S = App.store;
+  var DIR = "Trainingswoche", KEEP = 7, MIN_GAP = 12 * 3600 * 1000, RETRY_GAP = 3600 * 1000;
+  var LAST_KEY = "trainingswoche-app-autobackup"; /* gerätebezogen, gehört nicht ins Backup */
+  var NAME_RE = /^trainingswoche-backup-\d{4}-\d{2}-\d{2}\.json$/;
+
+  function isNative() {
+    try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); } catch (e) { return false; }
+  }
+  function plugin(name) {
+    var c = window.Capacitor;
+    try {
+      if (c.Plugins && c.Plugins[name]) return c.Plugins[name];
+      if (typeof c.registerPlugin === "function") return c.registerPlugin(name);
+    } catch (e) { /* kein Plugin */ }
+    return null;
+  }
+
+  /* ---------- 1. Zurück-Taste ---------- */
+  var stack = [], goingBack = false;
+  function tabId() { return (location.hash || "").replace("#", "") || (document.querySelector("#tabs .tab") || { getAttribute: function () { return ""; } }).getAttribute("data-id"); }
+  function firstId() { var t = document.querySelector("#tabs .tab"); return t ? t.getAttribute("data-id") : ""; }
+  function track() {
+    var id = tabId();
+    if (!id) return;
+    if (goingBack) { goingBack = false; return; }
+    var at = stack.indexOf(id);
+    if (at >= 0) stack.length = at + 1; /* zu einem schon besuchten Reiter: alles danach vergessen */
+    else stack.push(id);
+  }
+  function esc() { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); }
+
+  function onBack() {
+    /* 1. offenes Fenster oder halb gezogene Übung schließen */
+    if (document.querySelector(".dlg-back, .holding, .lifted, .dragging")) { esc(); return; }
+    /* 2. einen Reiter zurück */
+    if (stack.length > 1) {
+      stack.pop();
+      goingBack = true;
+      location.hash = "#" + stack[stack.length - 1];
+      return;
+    }
+    /* 3. nicht auf dem Startreiter: erst dorthin, sonst App beenden */
+    var first = firstId();
+    if (stack.length === 1 && stack[0] !== first && first) { stack = [first]; goingBack = true; location.hash = "#" + first; return; }
+    var A = plugin("App");
+    try { if (A && A.exitApp) A.exitApp(); } catch (e) { /* nichts */ }
+  }
+
+  function initBack() {
+    var A = plugin("App");
+    if (!A || !A.addListener) return;
+    stack = [tabId()].filter(Boolean);
+    window.addEventListener("hashchange", track);
+    try { A.addListener("backButton", onBack); } catch (e) { /* ohne Plugin bleibt die Standard-Zurücktaste */ }
+  }
+
+  /* ---------- 2. Automatische Sicherung ---------- */
+  function on() { var b = S.state().settings.backup; return !b || b.auto !== false; }
+  function getLast() { try { return JSON.parse(localStorage.getItem(LAST_KEY)) || null; } catch (e) { return null; } }
+  function setLast(o) { try { localStorage.setItem(LAST_KEY, JSON.stringify(o)); } catch (e) { /* egal */ } }
+  function stamp(d) { var p = function (n) { return String(n).padStart(2, "0"); }; return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); }
+  function errText(e) { return String((e && (e.message || e.code)) || e || "unbekannter Fehler").replace(/\s+/g, " ").slice(0, 120); }
+
+  function write(F, path, text) {
+    var args = { path: path, data: text, directory: "DOCUMENTS", encoding: "utf8", recursive: true };
+    return F.writeFile(args).catch(function (e) {
+      /* Auf älteren Android-Versionen (bis 10) muss man den Speicherzugriff erst erlauben */
+      if (F.requestPermissions) return F.requestPermissions().then(function () { return F.writeFile(args); });
+      throw e;
+    });
+  }
+  function prune(F) {
+    return F.readdir({ path: DIR, directory: "DOCUMENTS" }).then(function (r) {
+      var names = (r.files || []).map(function (f) { return typeof f === "string" ? f : f.name; }).filter(function (n) { return NAME_RE.test(n); }).sort().reverse();
+      return Promise.all(names.slice(KEEP).map(function (n) { return F.deleteFile({ path: DIR + "/" + n, directory: "DOCUMENTS" }).catch(function () {}); }));
+    }).catch(function () {});
+  }
+
+  var running = null;
+  /* Ergebnis: { ok, name, at } oder { ok: false, err, at } */
+  function run() {
+    if (running) return running;
+    var F = isNative() ? plugin("Filesystem") : null;
+    if (!F) return Promise.resolve({ ok: false, err: "nicht in der Android-App", at: Date.now() });
+    var name = "trainingswoche-backup-" + stamp(new Date()) + ".json";
+    running = Promise.resolve().then(function () {
+      return write(F, DIR + "/" + name, App.backup.toJson());
+    }).then(function () {
+      var r = { ok: true, name: name, at: Date.now() };
+      setLast(r);
+      try { App.reminder.markBackup(); } catch (e) { /* egal */ }
+      return prune(F).then(function () { return r; });
+    }, function (e) {
+      var r = { ok: false, err: errText(e), at: Date.now() };
+      setLast(r);
+      return r;
+    }).then(function (r) { running = null; paint(); return r; });
+    return running;
+  }
+
+  /* Automatisch nur, wenn sich etwas geändert hat und die letzte Sicherung etwas her ist */
+  function maybe() {
+    if (!isNative() || !on() || running) return;
+    var last = getLast(), now = Date.now();
+    if (!last && !(S.state().updatedAt > 0)) return; /* noch nichts eingetragen, nichts zu sichern */
+    if (last && last.ok) {
+      if ((S.state().updatedAt || 0) <= last.at) return;
+      if (now - last.at < MIN_GAP) return;
+    } else if (last && now - last.at < RETRY_GAP) return;
+    run();
+  }
+
+  /* ---------- Einstellungen ---------- */
+  var statusNode = null;
+  function paint() {
+    if (!statusNode) return; /* auch vor dem Einfügen in die Seite füllen */
+    var l = getLast();
+    statusNode.classList.toggle("err", !!(l && !l.ok));
+    if (!on()) statusNode.textContent = "Aus. Es werden keine automatischen Sicherungen angelegt.";
+    else if (!l) statusNode.textContent = "Noch keine Sicherung angelegt.";
+    else if (l.ok) statusNode.textContent = "Zuletzt gesichert: " + App.diag.fmt(l.at) + ". Ordner: Dokumente/" + DIR + ", Datei " + l.name + ".";
+    else statusNode.textContent = "Die letzte Sicherung hat nicht geklappt (" + l.err + "). Nutze bitte „Backup speichern“.";
+  }
+
+  function settingsNode() {
+    if (!isNative()) return null;
+    var el = App.el;
+    var inp = el("input", { type: "checkbox", class: "tgl-in", role: "switch", id: "ab-on" });
+    inp.checked = on();
+    inp.addEventListener("change", function () {
+      var st = S.state().settings;
+      st.backup = { auto: inp.checked };
+      S.touch();
+      paint();
+      if (inp.checked) maybe();
+    });
+    statusNode = el("p", { class: "hint", id: "ab-status", role: "status" });
+    var now = el("button", { type: "button", class: "btn", id: "ab-now", text: "Jetzt sichern", onclick: function () {
+      now.disabled = true;
+      run().then(function () { now.disabled = false; paint(); });
+    } });
+    var node = el("div", { class: "ab-box" },
+      el("label", { class: "tgl", for: "ab-on" }, el("span", { text: "Automatische Sicherung" }), inp),
+      statusNode,
+      el("p", { class: "hint", text: "Zum Zurückholen unter „Backup einspielen“ die Datei aus dem Ordner Dokumente/" + DIR + " auswählen." }),
+      el("div", null, now));
+    paint();
+    return node;
+  }
+
+  if (isNative()) {
+    initBack();
+    document.addEventListener("visibilitychange", function () { if (document.hidden) maybe(); });
+    document.addEventListener("DOMContentLoaded", function () { setTimeout(maybe, 4000); });
+  }
+  App.native = { isNative: isNative, settingsNode: settingsNode, runBackup: run, onBack: onBack, _stack: function () { return stack.slice(); } };
+})();
+
+</script>
+<script>
 /* Reiter 1: Trainingsplan. Tag wählen, Übungen abhaken oder Zahl eintragen, Tages- und Wochenprozent mit Überleistung. */
 (function () {
   "use strict";
@@ -4706,25 +4929,22 @@ html.sw-nav .tabs { touch-action: none; }
     try { if (navigator.vibrate) navigator.vibrate(kind === "over" ? [25, 40, 25] : 25); } catch (e) {}
     setTimeout(function () { layer.remove(); box.classList.remove("fx-full", "fx-over"); }, 1700);
   }
-  /* Angeheftete Kacheln: ab etwas Scrollen werden sie klein. Die Höhe der Seite bleibt gleich (Ausgleich per margin-bottom), damit nichts springt. */
+  /* Angeheftete Kacheln: Sobald sie oben angekommen sind, schrumpfen sie Stück für Stück mit dem Scrollen (--t von 0 bis 1).
+     Die Größe steckt komplett im CSS, die Höhe im normalen Fluss schrumpft mit, so entsteht kein leerer Streifen darunter. */
+  var SHRINK_PX = 240;
   function bindSticky(box) {
-    var comp = false;
+    var root = box.parentElement, queued = false;
     function upd() {
-      if (!box.isConnected) { window.removeEventListener("scroll", upd); return; }
+      queued = false;
+      if (!box.isConnected) { window.removeEventListener("scroll", onScroll); return; }
       var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-      var want = comp ? y > 20 : y > 60;
-      if (want === comp) return;
-      comp = want;
-      if (want) {
-        var h0 = box.offsetHeight;
-        box.classList.add("compact");
-        box.style.marginBottom = Math.max(0, h0 - box.offsetHeight) + "px";
-      } else {
-        box.classList.remove("compact");
-        box.style.marginBottom = "";
-      }
+      var top0 = root.getBoundingClientRect().top + y; /* wo die Kacheln im Normalfall beginnen */
+      var t = Math.max(0, Math.min(1, (y - top0) / SHRINK_PX));
+      box.style.setProperty("--t", t.toFixed(3));
     }
-    window.addEventListener("scroll", upd, { passive: true });
+    function onScroll() { if (!queued) { queued = true; requestAnimationFrame(upd); } }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
     upd();
   }
   var fx = null; /* wird beim Aufbau der Seite gesetzt: { day(kind), week(kind) } */
@@ -4751,7 +4971,8 @@ html.sw-nav .tabs { touch-action: none; }
     var prog = svg("circle", { class: "ring-p", cx: "50", cy: "50", r: "42", fill: "none", "stroke-width": "10", "stroke-linecap": "round", stroke: "url(#" + id + ")", transform: "rotate(-90 50 50)", "stroke-dasharray": CIRC.toFixed(2), "stroke-dashoffset": CIRC.toFixed(2) });
     sv.append(defs, svg("circle", { class: "ring-t", cx: "50", cy: "50", r: "42", fill: "none", "stroke-width": "10" }), prog);
     var mid = el("span", { class: "ring-mid" }, val);
-    var box = el("button", { type: "button", class: "card ring-tile", "aria-haspopup": "dialog", onclick: openDetail }, lab, el("span", { class: "ring-wrap" }, sv, mid));
+    var lab2 = el("span", { class: "m-label m-label2", "aria-hidden": "true", text: label || "" }); /* erscheint neben dem Ring, wenn die Kachel beim Scrollen klein wird */
+    var box = el("button", { type: "button", class: "card ring-tile", "aria-haspopup": "dialog", onclick: openDetail }, lab, el("span", { class: "ring-row" }, el("span", { class: "ring-wrap" }, sv, mid), lab2));
 
     function openDetail() {
       if (!o) return;
@@ -4778,7 +4999,7 @@ html.sw-nav .tabs { touch-action: none; }
       box: box,
       set: function (n) {
         o = n;
-        if (n.label) lab.textContent = n.label;
+        if (n.label) { lab.textContent = n.label; lab2.textContent = n.label; }
         val.replaceChildren();
         val.classList.toggle("rest", !!n.rest);
         box.classList.remove("is-full", "is-over");
@@ -4833,6 +5054,7 @@ html.sw-nav .tabs { touch-action: none; }
       var view = S.state().settings.view || {};
       var meters = el("div", { class: "meters" + (view.sticky ? " stick" : "") }, mDay.box, mWeek.box);
       root.append(meters, strip, live, help, panel);
+      document.documentElement.classList.toggle("has-stick", !!view.sticky);
       if (view.sticky) bindSticky(meters);
       fx = {
         day: function (k) { celebrate(mDay.box, k); say(k === "over" ? "Tagesziel übertroffen!" : "Tagesziel erreicht!"); },
@@ -5932,6 +6154,23 @@ html.sw-nav .tabs { touch-action: none; }
       return el("label", { class: "tgl", for: "view-" + key }, el("span", { text: text }), inp);
     }
 
+    function timerCfg() { return S.state().settings.timer; }
+    var volOut = el("output", { class: "rg-val" });
+    var vol = el("input", { type: "range", class: "rg", min: "0", max: "100", step: "5", id: "tm-vol", "aria-label": "Lautstärke des Timer-Tons" });
+    function paintVol() { volOut.textContent = timerCfg().volume === 0 ? "Aus" : timerCfg().volume + " %"; vol.style.setProperty("--p", timerCfg().volume + "%"); }
+    vol.value = String(timerCfg().volume);
+    vol.addEventListener("input", function () { timerCfg().volume = Number(vol.value); paintVol(); });
+    vol.addEventListener("change", function () { S.touch(); App.timer.test(); });
+    var vseg = el("div", { class: "seg", role: "group", "aria-label": "Stärke der Vibration" });
+    [[0, "Aus"], [1, "Schwach"], [2, "Mittel"], [3, "Stark"]].forEach(function (m) {
+      vseg.append(el("button", { type: "button", "data-v": String(m[0]), text: m[1], onclick: function () { timerCfg().vibe = m[0]; S.touch(); paintVibe(); App.timer.test(); } }));
+    });
+    function paintVibe() {
+      vseg.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(Number(b.getAttribute("data-v")) === timerCfg().vibe)); });
+    }
+    paintVol();
+    paintVibe();
+
     var fill = el("i");
     fill.style.width = "62%";
     paintMode();
@@ -5953,7 +6192,12 @@ html.sw-nav .tabs { touch-action: none; }
       toggle("hideDone", "Erledigte Übungen nach unten"),
       el("h3", { text: "Steuerung" }),
       toggle("swipeNav", "Navigation swipen"),
-      toggle("swipePage", "Seiten swipen")
+      toggle("swipePage", "Seiten swipen"),
+      el("h3", { text: "Timer-Signal" }),
+      el("p", { class: "hint", text: "Gilt für den Übungs-Timer beim Start und beim Erreichen des Ziels. Beim Verstellen hörst du eine Probe. Die Lautstärke wirkt zusätzlich zur Medien-Lautstärke deines Geräts, die Vibration ändert Länge der Impulse, nicht die Kraft des Motors." }),
+      el("div", { class: "rg-row" }, el("label", { for: "tm-vol", text: "Lautstärke" }), vol, volOut),
+      vseg,
+      el("div", { class: "btns" }, el("button", { type: "button", class: "btn", text: "Signal testen", onclick: function () { App.timer.test(); } }))
     ]);
   }
 
@@ -5980,6 +6224,7 @@ html.sw-nav .tabs { touch-action: none; }
         } })
       ),
       msg,
+      App.native.settingsNode(),
       rem,
       el("h3", { text: "Backup einspielen" }),
       imp.node,
