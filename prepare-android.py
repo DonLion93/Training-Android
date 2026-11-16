@@ -103,14 +103,21 @@ def styles():
 def manifest():
     p = MAIN / "AndroidManifest.xml"
     s = p.read_text(encoding="utf-8")
-    wanted = ["android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"]
-    lines = "".join('    <uses-permission android:name="%s" />\n' % w for w in wanted if w not in s)
-    if not lines:
-        return
-    if "</application>" in s:
-        s = s.replace("</application>", "</application>\n\n" + lines.rstrip("\n"), 1)
+    wanted = ['<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
+              '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />',
+              # Backup-Datei in Dokumente: erst bei Android 10 und älter nötig
+              '<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />']
+    lines = "".join("    %s\n" % w for w in wanted if re.search(r'android:name="([^"]+)"', w).group(1) not in s)
+    if lines:
+        if "</application>" in s:
+            s = s.replace("</application>", "</application>\n\n" + lines.rstrip("\n"), 1)
+        else:
+            s = s.replace("</manifest>", lines + "</manifest>", 1)
+    # Android-eigene Cloud-Sicherung der App-Daten (Google-Konto) sicherheitshalber aktiv lassen
+    if re.search(r'android:allowBackup="[^"]*"', s):
+        s = re.sub(r'android:allowBackup="[^"]*"', 'android:allowBackup="true"', s, count=1)
     else:
-        s = s.replace("</manifest>", lines + "</manifest>", 1)
+        s = s.replace("<application", '<application android:allowBackup="true"', 1)
     p.write_text(s, encoding="utf-8")
 
 

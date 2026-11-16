@@ -787,9 +787,13 @@ html.sw-nav .tabs { touch-action: none; }
 (function () {
   "use strict";
 
-  App.version = "1.39.0";
+  App.version = "1.40.0";
 
   App.changelog = [
+    { v: "1.40.0", date: "2026-11-16", items: [
+      "Fix: Die Zurück-Taste und die Zurück-Geste am Bildschirmrand schließen zuerst offene Fenster (zum Beispiel die Detailansicht einer Kachel) und gehen dann Reiter für Reiter zurück. Die App endet erst auf dem Startreiter.",
+      "Neu: Zusätzlich gilt ein Ersatzweg über den Browser-Verlauf, falls das Android-Plugin für die Zurück-Taste nicht antwortet. Unter Einstellungen > Info und Diagnose steht jetzt die Zeile „Zurück-Taste“ mit dem Zustand."
+    ] },
     { v: "1.39.0", date: "2026-11-15", items: [
       "Neu: Unter Einstellungen > Darstellung > Timer-Signal stellst du die Lautstärke des Timer-Tons (0 bis 100 %) und die Vibration (aus, schwach, mittel, stark) ein. Beim Verstellen gibt es eine Probe, dazu einen Knopf „Signal testen“.",
       "Hinweis: Die Vibration ändert die Länge der Impulse, nicht die Kraft des Motors, denn das lässt Android für Apps nicht zu."
@@ -1042,6 +1046,7 @@ html.sw-nav .tabs { touch-action: none; }
 
     rows.push(["Version", App.version]);
     rows.push(["Start", standalone ? "als installierte App" : "im Browser"]);
+    if (App.native && App.native.isNative && App.native.isNative()) rows.push(["Zurück-Taste", App.native.backStatus()]);
     rows.push(["Speicher im Browser", i.localOk ? "ok, " + Math.max(1, Math.round(size / 1024)) + " KB" : "FEHLER beim Schreiben"]);
     rows.push(["Konto", !i.cloud ? "nicht verfügbar" : i.connected ? "verbunden" : "nicht verbunden"]);
     if (i.cloud) {
@@ -4756,16 +4761,49 @@ html.sw-nav .tabs { touch-action: none; }
     /* 3. nicht auf dem Startreiter: erst dorthin, sonst App beenden */
     var first = firstId();
     if (stack.length === 1 && stack[0] !== first && first) { stack = [first]; goingBack = true; location.hash = "#" + first; return; }
-    var A = plugin("App");
     try { if (A && A.exitApp) A.exitApp(); } catch (e) { /* nichts */ }
   }
 
+  /* Die Zurück-Geste und -Taste arbeiten auf zwei Wegen, damit es auch dann klappt, wenn einer ausfällt:
+     a) Das Capacitor-Plugin „App“ meldet die Taste, dann läuft onBack (eigener Reiter-Verlauf, Fenster schließen, erst am Start beenden).
+     b) Ohne dieses Plugin geht Android im Browser-Verlauf zurück. Dafür bekommt jedes offene Fenster einen eigenen Verlaufseintrag,
+        und beim Zurückgehen (popstate) wird das Fenster geschlossen statt die App. Reiter haben ihren Eintrag über die Adresse (#reiter). */
+  var A = null, backState = "noch nicht gestartet";
+
+  function registerBack() {
+    A = plugin("App");
+    if (!A || !A.addListener) { backState = "Plugin „App“ fehlt, es gilt der Browser-Verlauf"; return; }
+    try {
+      var pr = A.addListener("backButton", onBack);
+      backState = "aktiv (Plugin)";
+      if (pr && pr.then) pr.then(null, function (e) { backState = "Plugin meldet Fehler (" + errText(e) + "), es gilt der Browser-Verlauf"; try { App.diag.log("Zurück-Taste: " + backState); } catch (x) { /* egal */ } });
+    } catch (e) { backState = "Plugin meldet Fehler (" + errText(e) + "), es gilt der Browser-Verlauf"; }
+  }
+
+  var dlgDepth = 0, ignorePop = 0;
+  function dlgCount() { return document.querySelectorAll(".dlg-back").length; }
+  function syncDlg() {
+    var n = dlgCount();
+    while (dlgDepth < n) { try { history.pushState({ dlg: dlgDepth + 1 }, "", location.href); } catch (e) { break; } dlgDepth++; }
+    while (dlgDepth > n) { dlgDepth--; ignorePop++; try { history.back(); } catch (e) { ignorePop--; } }
+  }
+  function initHistory() {
+    if (!document.body || typeof MutationObserver !== "function") return;
+    new MutationObserver(syncDlg).observe(document.body, { childList: true });
+    window.addEventListener("popstate", function () {
+      if (ignorePop > 0) { ignorePop--; return; }
+      if (dlgDepth > 0) { dlgDepth--; esc(); setTimeout(syncDlg, 0); }  /* esc() schließt das oberste Fenster; syncDlg gleicht den Verlauf ab, falls es offen blieb */
+    });
+  }
+
   function initBack() {
-    var A = plugin("App");
-    if (!A || !A.addListener) return;
-    stack = [tabId()].filter(Boolean);
-    window.addEventListener("hashchange", track);
-    try { A.addListener("backButton", onBack); } catch (e) { /* ohne Plugin bleibt die Standard-Zurücktaste */ }
+    function go() {
+      stack = [tabId()].filter(Boolean);   /* erst jetzt: vorher gibt es die Reiterleiste noch nicht */
+      window.addEventListener("hashchange", track);
+      registerBack();
+      initHistory();
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
   }
 
   /* ---------- 2. Automatische Sicherung ---------- */
@@ -4867,7 +4905,7 @@ html.sw-nav .tabs { touch-action: none; }
     document.addEventListener("visibilitychange", function () { if (document.hidden) maybe(); });
     document.addEventListener("DOMContentLoaded", function () { setTimeout(maybe, 4000); });
   }
-  App.native = { isNative: isNative, settingsNode: settingsNode, runBackup: run, onBack: onBack, _stack: function () { return stack.slice(); } };
+  App.native = { isNative: isNative, settingsNode: settingsNode, runBackup: run, onBack: onBack, backStatus: function () { return backState; }, _stack: function () { return stack.slice(); } };
 })();
 
 </script>
