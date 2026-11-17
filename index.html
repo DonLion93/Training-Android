@@ -787,9 +787,12 @@ html.sw-nav .tabs { touch-action: none; }
 (function () {
   "use strict";
 
-  App.version = "1.40.0";
+  App.version = "1.41.0";
 
   App.changelog = [
+    { v: "1.41.0", date: "2026-11-17", items: [
+      "Fix: Blendest du die Tastatur aus, ohne das Feld zu verlassen, bleibt unten kein großer leerer Bereich mehr stehen und die Seite springt nicht mehr hin und her. Der Zusatzplatz für die Tastatur verschwindet, sobald die Tastatur weg ist, und kommt beim nächsten Antippen des Feldes wieder."
+    ] },
     { v: "1.40.0", date: "2026-11-16", items: [
       "Fix: Die Zurück-Taste und die Zurück-Geste am Bildschirmrand schließen zuerst offene Fenster (zum Beispiel die Detailansicht einer Kachel) und gehen dann Reiter für Reiter zurück. Die App endet erst auf dem Startreiter.",
       "Neu: Zusätzlich gilt ein Ersatzweg über den Browser-Verlauf, falls das Android-Plugin für die Zurück-Taste nicht antwortet. Unter Einstellungen > Info und Diagnose steht jetzt die Zeile „Zurück-Taste“ mit dem Zustand."
@@ -3333,6 +3336,21 @@ html.sw-nav .tabs { touch-action: none; }
     return t.tagName === "INPUT" && TYPES.test(t.type || "text") && !t.readOnly && !t.disabled;
   }
 
+  /* Android blendet die Tastatur per Zurück-Taste aus, ohne dass das Feld den Fokus verliert. Deshalb merken wir uns die Höhe ohne Tastatur
+     und nehmen den Zusatzplatz unten weg, sobald der sichtbare Bereich nach dem Schrumpfen wieder so hoch ist. */
+  var baseH = 0, shrunk = false;
+  function sync() {
+    var h = visibleHeight();
+    if (!shrunk) baseH = Math.max(baseH, h);
+    if (!shrunk && baseH && h < baseH - 120) { shrunk = true; return; }
+    if (shrunk && h >= baseH - 80) {
+      shrunk = false;
+      clearTimeout(hideTimer);
+      timers.forEach(clearTimeout);
+      root.classList.remove("kb-open");
+    }
+  }
+
   function visibleHeight() {
     var h = window.innerHeight, vv = window.visualViewport;
     return vv && vv.height ? Math.min(h, vv.height) : h;
@@ -3364,16 +3382,28 @@ html.sw-nav .tabs { touch-action: none; }
     root.classList.add("kb-open");
     later();
   });
+  /* Tippt man in ein Feld, das nach dem Ausblenden der Tastatur noch den Fokus hat, kommt die Tastatur ohne neues focusin zurück */
+  document.addEventListener("pointerup", function (e) {
+    if (!isField(e.target) || e.target !== document.activeElement) return;
+    clearTimeout(hideTimer);
+    root.classList.add("kb-open");
+    later();
+  }, true);
+  window.addEventListener("hashchange", function () { if (!isField(document.activeElement)) root.classList.remove("kb-open"); });
   document.addEventListener("focusout", function () {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(function () {
       if (!isField(document.activeElement)) root.classList.remove("kb-open");
     }, 250);
   });
-  if (window.visualViewport) window.visualViewport.addEventListener("resize", function () {
-    if (isField(document.activeElement)) later();
-  });
-  window.addEventListener("orientationchange", function () { if (isField(document.activeElement)) later(); });
+  function onResize() {
+    sync();
+    if (isField(document.activeElement) && root.classList.contains("kb-open")) later();
+  }
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", onResize);
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", function () { baseH = 0; shrunk = false; if (isField(document.activeElement)) later(); });
+  baseH = visibleHeight();
   /* Wächst ein mehrzeiliges Feld beim Tippen, bleibt die Schreibstelle im Blick */
   document.addEventListener("input", function (e) {
     if (e.target && e.target.tagName === "TEXTAREA" && isField(e.target)) {
