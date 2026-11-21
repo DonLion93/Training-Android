@@ -486,8 +486,8 @@ button.day { position: relative; user-select: none; -webkit-user-select: none; -
 .bd-l { font-size: 12px; color: var(--muted); text-align: center; }
 .bd.got .bd-l { color: var(--ink); }
 .bd-bar { margin-top: 2px; }
-/* Platz unter der Seite, solange die Tastatur offen sein kann, damit auch Felder ganz unten nach oben scrollen können */
-html.kb-open #view { padding-bottom: 60vh; }
+/* Platz unter der Seite, solange die Tastatur offen sein kann, aber ihre Höhe nicht gemessen ist (sonst schrumpft der sichtbare Bereich von selbst) */
+html.kb-open:not(.kb-shrunk) #view { padding-bottom: 60vh; }
 .dlg-back.top { place-items: start center; padding-top: 12vh; }
 .dlg .hv-form .in { width: 110px; }
 /* Zielgewicht */
@@ -787,9 +787,13 @@ html.sw-nav .tabs { touch-action: none; }
 (function () {
   "use strict";
 
-  App.version = "1.41.0";
+  App.version = "1.42.0";
 
   App.changelog = [
+    { v: "1.42.0", date: "2026-11-20", items: [
+      "Geändert: Beim Tippen schiebt die App das Feld nur noch so weit hoch, dass es knapp über der Tastatur steht. Der große leere Bereich zwischen Feld und Tastatur ist weg, und der Zusatzplatz unten entfällt, solange die Tastatur gemessen wird.",
+      "Neu: Schließt du die Tastatur, scrollt die Seite zurück an die Stelle, an der sie vor dem Tippen war, wenn du zwischendurch nicht selbst gescrollt hast."
+    ] },
     { v: "1.41.0", date: "2026-11-17", items: [
       "Fix: Blendest du die Tastatur aus, ohne das Feld zu verlassen, bleibt unten kein großer leerer Bereich mehr stehen und die Seite springt nicht mehr hin und her. Der Zusatzplatz für die Tastatur verschwindet, sobald die Tastatur weg ist, und kommt beim nächsten Antippen des Feldes wieder."
     ] },
@@ -3339,16 +3343,29 @@ html.sw-nav .tabs { touch-action: none; }
   /* Android blendet die Tastatur per Zurück-Taste aus, ohne dass das Feld den Fokus verliert. Deshalb merken wir uns die Höhe ohne Tastatur
      und nehmen den Zusatzplatz unten weg, sobald der sichtbare Bereich nach dem Schrumpfen wieder so hoch ist. */
   var baseH = 0, shrunk = false;
+  /* Scrollposition vor dem ersten Hochschieben und Ziel des Hochschiebens: beim Schließen der Tastatur geht die Seite dorthin zurück,
+     solange man zwischendurch nicht selbst gescrollt hat */
+  var restoreY = null, lastTarget = null;
+  function giveBack() {
+    var y = restoreY, tg = lastTarget;
+    restoreY = null; lastTarget = null;
+    if (y === null || tg === null) return;
+    var cur = window.pageYOffset || 0;
+    if (Math.abs(cur - tg) > 60) return;       /* der Nutzer hat selbst gescrollt */
+    if (Math.abs(cur - y) < 2) return;
+    try { window.scrollTo({ top: y, behavior: "smooth" }); } catch (e) { window.scrollTo(0, y); }
+  }
+  function closeKb() {
+    clearTimeout(hideTimer);
+    timers.forEach(clearTimeout);
+    root.classList.remove("kb-open", "kb-shrunk");
+    giveBack();
+  }
   function sync() {
     var h = visibleHeight();
     if (!shrunk) baseH = Math.max(baseH, h);
-    if (!shrunk && baseH && h < baseH - 120) { shrunk = true; return; }
-    if (shrunk && h >= baseH - 80) {
-      shrunk = false;
-      clearTimeout(hideTimer);
-      timers.forEach(clearTimeout);
-      root.classList.remove("kb-open");
-    }
+    if (!shrunk && baseH && h < baseH - 120) { shrunk = true; root.classList.add("kb-shrunk"); return; }
+    if (shrunk && h >= baseH - 80) { shrunk = false; closeKb(); }
   }
 
   function visibleHeight() {
@@ -3356,24 +3373,58 @@ html.sw-nav .tabs { touch-action: none; }
     return vv && vv.height ? Math.min(h, vv.height) : h;
   }
 
-  /* Liegt das Feld nicht im oberen Teil des sichtbaren Bereichs, scrolle es dorthin */
-  function reveal() {
+  /* Sichtbarer Bereich für Inhalt: unten endet er an der Reiterleiste, wenn die über der Tastatur steht, oben an den angehefteten Kacheln */
+  function limits(vh) {
+    var top = 8, bottom = vh;
+    var st = document.querySelector(".meters.stick");
+    if (st) { var sr = st.getBoundingClientRect(); if (sr.top <= 1) top = Math.max(top, sr.bottom + 8); }
+    var nav = document.getElementById("tabs");
+    if (nav) { var nr = nav.getBoundingClientRect(); if (nr.height < vh * 0.3 && nr.top < vh + 1 && nr.bottom > vh * 0.5) bottom = Math.min(bottom, nr.top); }
+    return { top: top, bottom: bottom };
+  }
+  function scrollTarget(top) {
+    var max = Math.max(0, (document.documentElement.scrollHeight || 0) - (window.innerHeight || 0));
+    top = Math.max(0, Math.min(max, top));
+    var cur = window.pageYOffset || 0;
+    if (Math.abs(top - cur) < 2) return;
+    if (restoreY === null) restoreY = cur;
+    lastTarget = top;
+    try { window.scrollTo({ top: top, behavior: "smooth" }); } catch (e) { window.scrollTo(0, top); }
+  }
+
+  /* Tastatur gemessen (sichtbarer Bereich ist geschrumpft): das Feld wird nur so weit verschoben, dass es knapp über der Tastatur steht.
+     Ohne Messung (Tastatur überlagert die Seite) gilt die Näherung: Feld ins obere Drittel, mit Zusatzplatz unten. */
+  function reveal(late) {
     var t = document.activeElement;
     if (!isField(t)) return;
     var vh = visibleHeight();
     var r = t.getBoundingClientRect();
+    var pos = window.pageYOffset || 0;
+    if (shrunk) {
+      var lim = limits(vh), room = lim.bottom - lim.top, m = 28;
+      if (r.height > room * 0.6) {               /* hohes Feld: Oberkante nach oben, damit viel davon zu sehen ist */
+        if (r.top < lim.top || r.top > lim.top + room * 0.25) scrollTarget(pos + r.top - lim.top - 4);
+        return;
+      }
+      var need = r.bottom - (lim.bottom - m);
+      if (need > 0) scrollTarget(pos + need);
+      else if (r.top < lim.top) scrollTarget(pos + r.top - lim.top - 8);
+      /* Die angehefteten Kacheln schrumpfen beim Scrollen und verschieben den Inhalt: war das Hochschieben zu weit, ein Stück zurück, aber nie über die alte Position hinaus */
+      else if (restoreY !== null && pos > restoreY && need < -40) scrollTarget(Math.max(restoreY, pos + need));
+      return;
+    }
+    if (!late) return;                           /* erst abwarten, ob die Tastatur den sichtbaren Bereich noch verkleinert */
     var tall = r.height > vh * 0.4;
     var wantTop = tall ? vh * 0.1 : vh * 0.2;
     var fits = r.top >= vh * 0.05 && (tall ? r.top <= vh * 0.3 : r.bottom <= vh * 0.45);
     if (fits) return;
-    var top = Math.max(0, r.top + window.pageYOffset - wantTop);
-    try { window.scrollTo({ top: top, behavior: "smooth" }); } catch (e) { window.scrollTo(0, top); }
+    scrollTarget(r.top + pos - wantTop);
   }
 
   function later() {
     timers.forEach(clearTimeout);
     /* die Tastatur braucht einen Moment zum Einblenden und ändert dabei den sichtbaren Bereich */
-    timers = [60, 350, 800].map(function (ms) { return setTimeout(reveal, ms); });
+    timers = [60, 350, 1000, 1600].map(function (ms, i) { return setTimeout(function () { reveal(i >= 2); }, ms); });
   }
 
   document.addEventListener("focusin", function (e) {
@@ -3389,11 +3440,11 @@ html.sw-nav .tabs { touch-action: none; }
     root.classList.add("kb-open");
     later();
   }, true);
-  window.addEventListener("hashchange", function () { if (!isField(document.activeElement)) root.classList.remove("kb-open"); });
+  window.addEventListener("hashchange", function () { restoreY = null; lastTarget = null; if (!isField(document.activeElement)) closeKb(); });
   document.addEventListener("focusout", function () {
     clearTimeout(hideTimer);
     hideTimer = setTimeout(function () {
-      if (!isField(document.activeElement)) root.classList.remove("kb-open");
+      if (!isField(document.activeElement)) closeKb();
     }, 250);
   });
   function onResize() {
@@ -3402,17 +3453,17 @@ html.sw-nav .tabs { touch-action: none; }
   }
   if (window.visualViewport) window.visualViewport.addEventListener("resize", onResize);
   window.addEventListener("resize", onResize);
-  window.addEventListener("orientationchange", function () { baseH = 0; shrunk = false; if (isField(document.activeElement)) later(); });
+  window.addEventListener("orientationchange", function () { baseH = 0; shrunk = false; root.classList.remove("kb-shrunk"); if (isField(document.activeElement)) later(); });
   baseH = visibleHeight();
   /* Wächst ein mehrzeiliges Feld beim Tippen, bleibt die Schreibstelle im Blick */
   document.addEventListener("input", function (e) {
     if (e.target && e.target.tagName === "TEXTAREA" && isField(e.target)) {
       clearTimeout(timers[0]);
-      timers[0] = setTimeout(reveal, 80);
+      timers[0] = setTimeout(function () { reveal(!shrunk); }, 80);
     }
   });
 
-  App.keyboard = { reveal: reveal };
+  App.keyboard = { reveal: function () { reveal(true); } };
 })();
 
 </script>
