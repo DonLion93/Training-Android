@@ -534,6 +534,7 @@ html.kb-open:not(.kb-shrunk) #view { padding-bottom: 60vh; }
 .cal-sel-t { font-weight: 600; }
 .pausebox { display: grid; gap: 6px; justify-items: start; margin-top: 10px; }
 .pausebox .hint { margin: 0; }
+.pausebox[hidden] { display: none; }
 .arc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .arc-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; }
 .arc-n { display: grid; min-width: 0; flex: 1 1 140px; }
@@ -787,9 +788,12 @@ html.sw-nav .tabs { touch-action: none; }
 (function () {
   "use strict";
 
-  App.version = "1.42.0";
+  App.version = "1.43.0";
 
   App.changelog = [
+    { v: "1.43.0", date: "2026-11-24", items: [
+      "Fix: Der Knopf „Pause nötig“ unten im Trainingsplan verschwindet sofort, sobald du eine Übung abhakst oder etwas einträgst, und erscheint wieder, wenn du alles entfernst. Ein Reiterwechsel ist nicht mehr nötig."
+    ] },
     { v: "1.42.0", date: "2026-11-20", items: [
       "Geändert: Beim Tippen schiebt die App das Feld nur noch so weit hoch, dass es knapp über der Tastatur steht. Der große leere Bereich zwischen Feld und Tastatur ist weg, und der Zusatzplatz unten entfällt, solange die Tastatur gemessen wird.",
       "Neu: Schließt du die Tastatur, scrollt die Seite zurück an die Stelle, an der sie vor dem Tippen war, wenn du zwischendurch nicht selbst gescrollt hast."
@@ -5326,6 +5330,7 @@ html.sw-nav .tabs { touch-action: none; }
         paintMeters();
         paintStrip();
         rows.forEach(paintRow);
+        paintPause();
         scheduleOrder();
       }
 
@@ -5448,11 +5453,17 @@ html.sw-nav .tabs { touch-action: none; }
       }
 
       /* Pause nötig (Krankheit, Urlaub): der Tag zählt nicht als ausgelassen. Nur ohne Einträge an diesem Tag. */
+      var pauseEl = null, pauseDate = null;
+      function paintPause() {
+        if (pauseEl) pauseEl.hidden = App.pause.hasProgress(pauseDate);
+      }
       function pauseBox(date) {
-        if (App.pause.hasProgress(date)) return document.createDocumentFragment();
-        return el("div", { class: "pausebox" },
+        pauseDate = date;
+        pauseEl = el("div", { class: "pausebox" },
           el("button", { type: "button", class: "btn", id: "pause-on", text: "Pause nötig", onclick: function () { App.pause.set(date, true); buildPanel(); paintAll(); } }),
           el("p", { class: "hint", text: "Krank oder unterwegs? Ein Pausentag zählt nicht als ausgelassen und unterbricht keine Serie." }));
+        paintPause();
+        return pauseEl;
       }
 
       function buildPanel() {
@@ -5460,6 +5471,7 @@ html.sw-nav .tabs { touch-action: none; }
         var d = App.DAYS[sel], train = !!st.days[sel];
         var date = App.pause.dateOfDay(sel), paused = train && App.pause.is(date);
         rows = [];
+        pauseEl = null;
         /* Ein offener Timer, dessen Übung oder Tag es nicht mehr gibt oder keine Zeiteinheit mehr hat, wird verworfen */
         var cur = T.current();
         if (cur) {
